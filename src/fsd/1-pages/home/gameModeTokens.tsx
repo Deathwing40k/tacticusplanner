@@ -6,10 +6,10 @@ import { useState, useEffect, useContext } from 'react';
 
 import { StoreContext } from '@/reducers/store.provider';
 
-import { TacticusTokens } from '@/fsd/5-shared/lib/tacticus-api/tacticus-api.models';
+import { TacticusTokens } from '@/fsd/5-shared/lib/tacticus-api';
 import { MiscIcon } from '@/fsd/5-shared/ui/icons';
 
-export default function TokenAvailability() {
+const TokenAvailability = () => {
     const { gameModeTokens } = useContext(StoreContext);
     const [countdown, setCountdown] = useState<Record<string, number>>({});
 
@@ -24,7 +24,7 @@ export default function TokenAvailability() {
             .padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     };
 
-    // Countdown timer effect
+    // Countdown timer effect (single timer for all tokens)
     useEffect(() => {
         if (!gameModeTokens || !gameModeTokens.tokens) return;
 
@@ -36,20 +36,21 @@ export default function TokenAvailability() {
             }
         });
         setCountdown(initial);
+    }, [gameModeTokens]);
 
-        // Tick down every second
+    useEffect(() => {
+        // Single interval for all tokens
         const interval = setInterval(() => {
             setCountdown(prev => {
                 const updated: Record<string, number> = {};
                 Object.entries(prev).forEach(([key, value]) => {
-                    if (value > 0) updated[key] = value - 1;
+                    updated[key] = value > 0 ? value - 1 : 0;
                 });
                 return updated;
             });
         }, 1000);
-
         return () => clearInterval(interval);
-    }, [gameModeTokens]);
+    }, []);
 
     // Color based on token fullness
     const getStatusColor = (current: number, max: number) => {
@@ -67,17 +68,19 @@ export default function TokenAvailability() {
         salvageRun: { label: 'Salvage Run', icon: <MiscIcon icon={'salvageRunToken'} width={24} height={24} /> },
         bombToken: { label: 'Bomb', icon: <MiscIcon icon={'bombToken'} width={24} height={24} /> },
     };
-    // Filter tokens by key where value is a token object or bombToken
+    // Type guard for TacticusTokens shape
+    const isTacticusTokens = (value: any): value is TacticusTokens => {
+        return value && typeof value === 'object' && typeof value.current === 'number' && typeof value.max === 'number';
+    };
+
+    // Filter tokens by key where value is a valid TacticusTokens object
     const tokenItems = Object.entries(gameModeTokens?.tokens ?? {})
-        .filter(
-            ([key, value]: [string, TacticusTokens | undefined]) =>
-                key === 'bombToken' || (typeof value === 'object' && value && 'current' in value && 'max' in value)
-        )
-        .map(([key, value]: [string, TacticusTokens | undefined]) => ({
+        .filter(([_key, value]) => isTacticusTokens(value))
+        .map(([key, value]) => ({
             key,
             label: tokenLabels[key]?.label ?? key,
             icon: tokenLabels[key]?.icon ?? '',
-            data: value,
+            data: isTacticusTokens(value) ? value : undefined,
         }));
 
     if (tokenItems.length === 0) {
@@ -87,10 +90,8 @@ export default function TokenAvailability() {
     return (
         <div className="border border-gray-700 bg-black/30 rounded-lg">
             <div className="flex items-center gap-2 border-b border-gray-700 px-4 py-2">
-                <span>⚡</span>
                 <h3 className="text-xs font-bold uppercase tracking-wider">Token Availability</h3>
             </div>
-
             <div className="p-3">
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
                     {tokenItems.map(item => (
@@ -103,26 +104,32 @@ export default function TokenAvailability() {
                             </div>
 
                             <div className="flex items-center justify-between">
-                                <div
-                                    className={`font-mono text-sm font-bold ${getStatusColor(
-                                        item.data?.current ?? 0,
-                                        item.data?.max ?? 0
-                                    )}`}>
-                                    {item.data?.current ?? 0}/{item.data?.max ?? 0}
-                                    {item.data?.current === item.data?.max && item.data?.max !== undefined && (
-                                        <span className="ml-1 text-[9px] text-green-400">Full</span>
-                                    )}
-                                </div>
+                                {item.data ? (
+                                    <>
+                                        <div
+                                            className={`font-mono text-sm font-bold ${getStatusColor(
+                                                item.data.current,
+                                                item.data.max
+                                            )}`}>
+                                            {item.data.current}/{item.data.max}
+                                            {item.data.current === item.data.max && item.data.max !== undefined && (
+                                                <span className="ml-1 text-[9px] text-green-400">Full</span>
+                                            )}
+                                        </div>
 
-                                {countdown[item.key] > 0 && (item.data?.current ?? 0) < (item.data?.max ?? 0) && (
-                                    <div className="text-right">
-                                        <div className="font-mono text-[9px] uppercase tracking-wider text-gray-500">
-                                            Next
-                                        </div>
-                                        <div className="font-mono text-[10px] text-blue-400">
-                                            {formatTime(countdown[item.key])}
-                                        </div>
-                                    </div>
+                                        {countdown[item.key] > 0 && item.data.current < item.data.max && (
+                                            <div className="text-right">
+                                                <div className="font-mono text-[9px] uppercase tracking-wider text-gray-500">
+                                                    Next
+                                                </div>
+                                                <div className="font-mono text-[10px] text-blue-400">
+                                                    {formatTime(countdown[item.key])}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </>
+                                ) : (
+                                    <div className="font-mono text-sm text-red-400">Invalid token data</div>
                                 )}
                             </div>
                         </div>
@@ -131,4 +138,6 @@ export default function TokenAvailability() {
             </div>
         </div>
     );
-}
+};
+
+export default TokenAvailability;

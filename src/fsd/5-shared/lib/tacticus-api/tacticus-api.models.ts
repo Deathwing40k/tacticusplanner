@@ -171,7 +171,6 @@ export interface TacticusShard {
 interface TacticusProgress {
     campaigns: TacticusCampaignProgress[]; // List of CampaignProgress objects
     legendaryEvents: TacticusLegendaryEventProgress[]; // List of LegendaryEventProgress objects
-    tokens: TacticusTokensState;
     arena?: { tokens?: TacticusTokens };
     guildRaid?: { tokens?: TacticusTokens; bombTokens?: TacticusTokens };
     onslaught?: { tokens?: TacticusTokens };
